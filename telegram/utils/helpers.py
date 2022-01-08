@@ -69,6 +69,13 @@ def to_timestamp(dt_obj):
     return int(_timestamp(dt_obj))
 
 
+def from_datetime_str(datetime_str):
+    if not datetime_str:
+        return None
+
+    return datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%f+00:00")
+
+
 def from_timestamp(unixtime):
     """
     Args:

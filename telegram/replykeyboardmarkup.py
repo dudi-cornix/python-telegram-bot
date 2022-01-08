@@ -19,6 +19,7 @@
 """This module contains an object that represents a Telegram ReplyKeyboardMarkup."""
 
 from telegram import ReplyMarkup
+from telegram.constants import PlatformType
 
 
 class ReplyKeyboardMarkup(ReplyMarkup):
@@ -72,15 +73,15 @@ class ReplyKeyboardMarkup(ReplyMarkup):
         self.one_time_keyboard = bool(one_time_keyboard)
         self.selective = bool(selective)
 
-    def to_dict(self):
-        data = super(ReplyKeyboardMarkup, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(ReplyKeyboardMarkup, self).to_dict(platform_type=platform_type)
 
         data['keyboard'] = []
         for row in self.keyboard:
             r = []
             for button in row:
                 if hasattr(button, 'to_dict'):
-                    r.append(button.to_dict())  # telegram.KeyboardButton
+                    r.append(button.to_dict(platform_type=platform_type))  # telegram.KeyboardButton
                 else:
                     r.append(button)  # str
             data['keyboard'].append(r)

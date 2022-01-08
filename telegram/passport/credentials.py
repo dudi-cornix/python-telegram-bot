@@ -17,6 +17,9 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 import binascii
+
+from telegram.constants import PlatformType
+
 try:
     import ujson as json
 except ImportError:
@@ -354,10 +357,10 @@ class SecureValue(TelegramObject):
 
         return cls(bot=bot, **data)
 
-    def to_dict(self):
-        data = super(SecureValue, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(SecureValue, self).to_dict(platform_type=platform_type)
 
-        data['files'] = [p.to_dict() for p in self.files]
+        data['files'] = [p.to_dict(platform_type=platform_type) for p in self.files]
 
         return data
 
@@ -411,8 +414,8 @@ class DataCredentials(_CredentialsBase):
     def __init__(self, data_hash, secret, **kwargs):
         super(DataCredentials, self).__init__(data_hash, secret, **kwargs)
 
-    def to_dict(self):
-        data = super(DataCredentials, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(DataCredentials, self).to_dict(platform_type=platform_type)
 
         del data['file_hash']
         del data['hash']
@@ -437,8 +440,8 @@ class FileCredentials(_CredentialsBase):
     def __init__(self, file_hash, secret, **kwargs):
         super(FileCredentials, self).__init__(file_hash, secret, **kwargs)
 
-    def to_dict(self):
-        data = super(FileCredentials, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(FileCredentials, self).to_dict(platform_type=platform_type)
 
         del data['data_hash']
         del data['hash']

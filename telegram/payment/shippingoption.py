@@ -19,6 +19,7 @@
 """This module contains an object that represents a Telegram ShippingOption."""
 
 from telegram import TelegramObject
+from telegram.constants import PlatformType
 
 
 class ShippingOption(TelegramObject):
@@ -44,9 +45,9 @@ class ShippingOption(TelegramObject):
 
         self._id_attrs = (self.id,)
 
-    def to_dict(self):
-        data = super(ShippingOption, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(ShippingOption, self).to_dict(platform_type=platform_type)
 
-        data['prices'] = [p.to_dict() for p in self.prices]
+        data['prices'] = [p.to_dict(platform_type=platform_type) for p in self.prices]
 
         return data

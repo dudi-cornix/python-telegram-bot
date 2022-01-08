@@ -19,6 +19,7 @@
 """This module contains an object that represents a Telegram InlineKeyboardButton."""
 
 from telegram import TelegramObject
+from telegram.constants import PlatformType
 
 
 class InlineKeyboardButton(TelegramObject):
@@ -87,3 +88,20 @@ class InlineKeyboardButton(TelegramObject):
         self.switch_inline_query_current_chat = switch_inline_query_current_chat
         self.callback_game = callback_game
         self.pay = pay
+
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        if platform_type == PlatformType.telegram.value:
+            data = super(InlineKeyboardButton, self).to_dict(platform_type=platform_type)
+        else:
+            data = {"type": 2, "label": self.text}
+            if self.callback_data:
+                style = 1
+                data["custom_id"] = self.callback_data
+            elif self.url:
+                style = 5
+                data["url"] = self.url
+            else:
+                raise Exception("You need either custom_id or url in order to use Button")
+            data["style"] = style
+
+        return data

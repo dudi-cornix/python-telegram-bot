@@ -19,6 +19,7 @@
 """Contains information about Telegram Passport data shared with the bot by the user."""
 
 from telegram import EncryptedCredentials, EncryptedPassportElement, TelegramObject
+from telegram.constants import PlatformType
 
 
 class PassportData(TelegramObject):
@@ -65,10 +66,10 @@ class PassportData(TelegramObject):
 
         return cls(bot=bot, **data)
 
-    def to_dict(self):
-        data = super(PassportData, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(PassportData, self).to_dict(platform_type=platform_type)
 
-        data['data'] = [e.to_dict() for e in self.data]
+        data['data'] = [e.to_dict(platform_type=platform_type) for e in self.data]
 
         return data
 

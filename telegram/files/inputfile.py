@@ -26,6 +26,7 @@ import sys
 from uuid import uuid4
 
 from telegram import TelegramError
+from telegram.constants import PlatformType
 
 DEFAULT_MIME_TYPE = 'application/octet-stream'
 
@@ -103,6 +104,6 @@ class InputFile(object):
     def is_file(obj):
         return hasattr(obj, 'read')
 
-    def to_dict(self):
+    def to_dict(self, platform_type=PlatformType.telegram.value):
         if self.attach:
             return 'attach://' + self.attach

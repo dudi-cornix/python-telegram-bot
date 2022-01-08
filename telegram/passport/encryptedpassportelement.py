@@ -20,6 +20,7 @@
 
 from telegram import (TelegramObject, PassportFile, PersonalDetails, IdDocumentData,
                       ResidentialAddress)
+from telegram.constants import PlatformType
 from telegram.passport.credentials import decrypt_json
 
 
@@ -174,10 +175,10 @@ class EncryptedPassportElement(TelegramObject):
 
         return encrypted_passport_elements
 
-    def to_dict(self):
-        data = super(EncryptedPassportElement, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(EncryptedPassportElement, self).to_dict(platform_type=platform_type)
 
         if self.files:
-            data['files'] = [p.to_dict() for p in self.files]
+            data['files'] = [p.to_dict(platform_type=platform_type) for p in self.files]
 
         return data

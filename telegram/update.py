@@ -17,9 +17,11 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram Update."""
+from discord import ChannelType
 
 from telegram import (Message, TelegramObject, InlineQuery, ChosenInlineResult,
                       CallbackQuery, ShippingQuery, PreCheckoutQuery)
+from telegram.constants import PlatformType
 
 
 class Update(TelegramObject):
@@ -199,12 +201,54 @@ class Update(TelegramObject):
         return message
 
     @classmethod
-    def de_json(cls, data, bot):
-        if not data:
-            return None
+    def get_dict_from_message(cls, message):
+        if message is None:
+            return
+        channel = message.channel
+        user = message.author
+        flags = message.flags
+        data = {"id": message.id, "update_id": message.id, "type": message.type, "content": message.content,
+                "attachments": message.attachments, "date": message.created_at, "edit_date": message.edited_at,
+                "channel": {"id": channel.id, "type": channel.type, "name": getattr(channel, "name", None)},
+                "flags": {"value": flags.value}}
+        if channel.type == ChannelType.private:
+            data["author"] = {"id": user.id, "username": user.name, "discriminator": user.discriminator,
+                              "bot": user.bot}
+            guild = getattr(user, "guild", None)
+            if guild:
+                data["author"]["guild"] = {"id": guild.id, "name": guild.name, "shared_id": guild.shard_id,
+                                           "chunked": guild.chunked, "member_count": guild.member_count}
 
+        return data
+
+    @classmethod
+    def de_json_discord(cls, bot, data):
+        _data = super(Update, cls).de_json(data, bot)
+
+        message = _data.get("message")
+        is_edited = bool(message.get("edited_timestamp"))
+        is_channel_post = bool(message.get("guild_id"))
+        is_callback_query = "data" in _data
+        data = dict()
+        if is_callback_query:
+            data['callback_query'] = CallbackQuery.de_json(_data, bot)
+        elif is_channel_post:
+            if is_edited:
+                data['edited_channel_post'] = Message.de_json(message, bot)
+            else:
+                data['channel_post'] = Message.de_json(message, bot)
+        else:
+            if is_edited:
+                data['edited_message'] = Message.de_json(message, bot)
+            else:
+                data['message'] = Message.de_json(message, bot)
+
+        data['update_id'] = _data['id']
+        return data
+
+    @classmethod
+    def de_json_telegram(cls, bot, data):
         data = super(Update, cls).de_json(data, bot)
-
         data['message'] = Message.de_json(data.get('message'), bot)
         data['edited_message'] = Message.de_json(data.get('edited_message'), bot)
         data['inline_query'] = InlineQuery.de_json(data.get('inline_query'), bot)
@@ -215,5 +259,16 @@ class Update(TelegramObject):
         data['pre_checkout_query'] = PreCheckoutQuery.de_json(data.get('pre_checkout_query'), bot)
         data['channel_post'] = Message.de_json(data.get('channel_post'), bot)
         data['edited_channel_post'] = Message.de_json(data.get('edited_channel_post'), bot)
+        return data
+
+    @classmethod
+    def de_json(cls, data, bot):
+        if not data:
+            return None
+
+        if bot.type == PlatformType.telegram.value:
+            data = cls.de_json_telegram(bot, data)
+        else:
+            data = cls.de_json_discord(bot, data)
 
         return cls(**data)

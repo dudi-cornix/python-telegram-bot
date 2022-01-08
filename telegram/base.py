@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """Base class for Telegram Objects."""
+from telegram.constants import PlatformType
 
 try:
     import ujson as json
@@ -47,16 +48,20 @@ class TelegramObject(object):
 
         return data
 
-    def to_json(self):
+    def to_json(self, platform_type=PlatformType.telegram.value):
         """
         Returns:
             :obj:`str`
 
         """
 
-        return json.dumps(self.to_dict())
+        data = self.to_dict(platform_type=platform_type)
+        if platform_type == PlatformType.telegram.value:
+            return json.dumps(data)
+        else:
+            return data
 
-    def to_dict(self):
+    def to_dict(self, platform_type=PlatformType.telegram.value):
         data = dict()
 
         for key in iter(self.__dict__):
@@ -71,7 +76,7 @@ class TelegramObject(object):
             value = self.__dict__[key]
             if value is not None:
                 if hasattr(value, 'to_dict'):
-                    data[key] = value.to_dict()
+                    data[key] = value.to_dict(platform_type=platform_type)
                 else:
                     data[key] = value
 

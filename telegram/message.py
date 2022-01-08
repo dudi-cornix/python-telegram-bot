@@ -25,7 +25,8 @@ from telegram import (Animation, Audio, Contact, Document, Chat, Location, Photo
                       TelegramObject, User, Video, Voice, Venue, MessageEntity, Game, Invoice,
                       SuccessfulPayment, VideoNote, PassportData)
 from telegram import ParseMode
-from telegram.utils.helpers import escape_markdown, to_timestamp, from_timestamp
+from telegram.constants import PlatformType
+from telegram.utils.helpers import escape_markdown, to_timestamp, from_timestamp, from_datetime_str
 
 _UNDEFINED = object()
 
@@ -324,12 +325,21 @@ class Message(TelegramObject):
         return None
 
     @classmethod
-    def de_json(cls, data, bot):
-        if not data:
-            return None
+    def de_json_discord(cls, bot, data):
+        data['text'] = data.get("content")
+        data['message_id'] = data['id']
+        data['from_user'] = User.de_json(data.get('author'), bot)
+        data['date'] = from_datetime_str(data.get('timestamp'))
+        channel = data.get('channel') or {"id": data["channel_id"]}
+        data['chat'] = Chat.de_json(channel, bot)
+        data['forward_from'] = User.de_json(data.get('forward_from'), bot)
+        data['forward_from_chat'] = Chat.de_json(data.get('forward_from_chat'), bot)
+        data['forward_date'] = from_datetime_str(data.get('forward_date'))
+        data['reply_to_message'] = Message.de_json(data.get('referenced_message'), bot)
+        data['edit_date'] = from_datetime_str(data.get('edited_timestamp'))
 
-        data = super(Message, cls).de_json(data, bot)
-
+    @classmethod
+    def de_json_telegram(cls, bot, data):
         data['from_user'] = User.de_json(data.get('from'), bot)
         data['date'] = from_timestamp(data['date'])
         data['chat'] = Chat.de_json(data.get('chat'), bot)
@@ -359,6 +369,18 @@ class Message(TelegramObject):
         data['invoice'] = Invoice.de_json(data.get('invoice'), bot)
         data['successful_payment'] = SuccessfulPayment.de_json(data.get('successful_payment'), bot)
         data['passport_data'] = PassportData.de_json(data.get('passport_data'), bot)
+
+    @classmethod
+    def de_json(cls, data, bot):
+        if not data:
+            return None
+
+        data = super(Message, cls).de_json(data, bot)
+
+        if bot.type == PlatformType.telegram.value:
+            cls.de_json_telegram(bot, data)
+        else:
+            cls.de_json_discord(bot, data)
 
         return cls(bot=bot, **data)
 
@@ -400,8 +422,8 @@ class Message(TelegramObject):
         elif item == 'chat_id':
             return self.chat.id
 
-    def to_dict(self):
-        data = super(Message, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(Message, self).to_dict(platform_type=platform_type)
 
         # Required
         data['date'] = to_timestamp(self.date)
@@ -411,15 +433,15 @@ class Message(TelegramObject):
         if self.edit_date:
             data['edit_date'] = to_timestamp(self.edit_date)
         if self.photo:
-            data['photo'] = [p.to_dict() for p in self.photo]
+            data['photo'] = [p.to_dict(platform_type=platform_type) for p in self.photo]
         if self.entities:
-            data['entities'] = [e.to_dict() for e in self.entities]
+            data['entities'] = [e.to_dict(platform_type=platform_type) for e in self.entities]
         if self.caption_entities:
-            data['caption_entities'] = [e.to_dict() for e in self.caption_entities]
+            data['caption_entities'] = [e.to_dict(platform_type=platform_type) for e in self.caption_entities]
         if self.new_chat_photo:
-            data['new_chat_photo'] = [p.to_dict() for p in self.new_chat_photo]
+            data['new_chat_photo'] = [p.to_dict(platform_type=platform_type) for p in self.new_chat_photo]
         if self.new_chat_members:
-            data['new_chat_members'] = [u.to_dict() for u in self.new_chat_members]
+            data['new_chat_members'] = [u.to_dict(platform_type=platform_type) for u in self.new_chat_members]
 
         return data
 

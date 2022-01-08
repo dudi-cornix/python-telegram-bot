@@ -41,9 +41,8 @@ except ImportError:  # pragma: no cover
                   "how to properly install.")
     raise
 
-from telegram import (InputFile, TelegramError, InputMedia)
-from telegram.error import (Unauthorized, NetworkError, TimedOut, BadRequest, ChatMigrated,
-                            RetryAfter, InvalidToken)
+from telegram import (InputFile, InputMedia)
+from telegram.error import (Unauthorized, NetworkError, TimedOut, BadRequest, InvalidToken)
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
@@ -51,25 +50,6 @@ USER_AGENT = 'Python Telegram Bot (https://github.com/python-telegram-bot/python
 
 
 class Request(object):
-    """
-    Helper class for python-telegram-bot which provides methods to perform POST & GET towards
-    telegram servers.
-
-    Args:
-        con_pool_size (int): Number of connections to keep in the connection pool.
-        proxy_url (str): The URL to the proxy server. For example: `http://127.0.0.1:3128`.
-        urllib3_proxy_kwargs (dict): Arbitrary arguments passed as-is to `urllib3.ProxyManager`.
-            This value will be ignored if proxy_url is not set.
-        connect_timeout (int|float): The maximum amount of time (in seconds) to wait for a
-            connection attempt to a server to succeed. None will set an infinite timeout for
-            connection attempts. (default: 5.)
-        read_timeout (int|float): The maximum amount of time (in seconds) to wait between
-            consecutive read operations for a response from the server. None will set an infinite
-            timeout. This value is usually overridden by the various ``telegram.Bot`` methods.
-            (default: 5.)
-
-    """
-
     def __init__(self,
                  con_pool_size=1,
                  proxy_url=None,
@@ -151,31 +131,18 @@ class Request(object):
             dict: A JSON parsed as Python dict with results - on error this dict will be empty.
 
         """
-
+        if not json_data:
+            return
         try:
             decoded_s = json_data.decode('utf-8')
             data = json.loads(decoded_s)
         except UnicodeDecodeError:
             logging.getLogger(__name__).debug(
                 'Logging raw invalid UTF-8 response:\n%r', json_data)
-            raise TelegramError('Server response could not be decoded using UTF-8')
+            raise BadRequest('Server response could not be decoded using UTF-8')
         except ValueError:
-            raise TelegramError('Invalid server response')
-
-        if not data.get('ok'):  # pragma: no cover
-            description = data.get('description')
-            parameters = data.get('parameters')
-            if parameters:
-                migrate_to_chat_id = parameters.get('migrate_to_chat_id')
-                if migrate_to_chat_id:
-                    raise ChatMigrated(migrate_to_chat_id)
-                retry_after = parameters.get('retry_after')
-                if retry_after:
-                    raise RetryAfter(retry_after)
-            if description:
-                return description
-
-        return data['result']
+            raise BadRequest('Invalid server response')
+        return data
 
     def _request_wrapper(self, *args, **kwargs):
         """Wraps urllib3 request for handling known exceptions.
@@ -193,7 +160,7 @@ class Request(object):
         """
         # Make sure to hint Telegram servers that we reuse connections by sending
         # "Connection: keep-alive" in the HTTP headers.
-        if 'headers' not in kwargs:
+        if not kwargs.get('headers'):
             kwargs['headers'] = {}
         kwargs['headers']['connection'] = 'keep-alive'
         # Also set our user agent
@@ -217,25 +184,31 @@ class Request(object):
         except ValueError:
             message = 'Unknown HTTPError'
 
+        error_message = message.get("message") or message.get("errors")
         if resp.status in (401, 403):
-            raise Unauthorized(message)
-        elif resp.status == 400:
-            raise BadRequest(message)
-        elif resp.status == 404:
-            raise InvalidToken()
-        elif resp.status == 413:
-            raise NetworkError('File too large. Check telegram api limits '
-                               'https://core.telegram.org/bots/api#senddocument')
-
+            raise Unauthorized(str(error_message))
+        elif 400 <= resp.status <= 499:
+            raise BadRequest(str(error_message))
         elif resp.status == 502:
             raise NetworkError('Bad Gateway')
         else:
             raise NetworkError('{0} ({1})'.format(message, resp.status))
 
-    def get(self, url, timeout=None):
+    def request(self, method_type, *args, **kwargs):
+        if method_type == "GET":
+            return self.get(*args, **kwargs)
+        elif method_type == "DELETE":
+            return self.delete(*args, **kwargs)
+        elif method_type == "POST":
+            return self.post(*args, **kwargs)
+        elif method_type == "PATCH":
+            return self.patch(*args, **kwargs)
+
+    def get(self, url, timeout=None, headers=None, *args, **kwargs):
         """Request an URL.
 
         Args:
+            headers:
             url (:obj:`str`): The web location we want to retrieve.
             timeout (:obj:`int` | :obj:`float`): If this value is specified, use it as the read
                 timeout from the server (instead of the one specified during creation of the
@@ -250,13 +223,23 @@ class Request(object):
         if timeout is not None:
             urlopen_kwargs['timeout'] = Timeout(read=timeout, connect=self._connect_timeout)
 
-        result = self._request_wrapper('GET', url, **urlopen_kwargs)
+        result = self._request_wrapper('GET', url, **urlopen_kwargs, headers=headers)
         return self._parse(result)
 
-    def post(self, url, data, timeout=None):
+    def delete(self, url, timeout=None, headers=None, *args, **kwargs):
+        urlopen_kwargs = {}
+
+        if timeout is not None:
+            urlopen_kwargs['timeout'] = Timeout(read=timeout, connect=self._connect_timeout)
+
+        result = self._request_wrapper('DELETE', url, **urlopen_kwargs, headers=headers)
+        return self._parse(result)
+
+    def patch(self, url, data, timeout=None, headers=None, *args, **kwargs):
         """Request an URL.
 
         Args:
+            headers:
             url (:obj:`str`): The web location we want to retrieve.
             data (dict[str, str|int]): A dict of key/value pairs. Note: On py2.7 value is unicode.
             timeout (:obj:`int` | :obj:`float`): If this value is specified, use it as the read
@@ -302,11 +285,71 @@ class Request(object):
 
         # Use multipart upload if we're uploading files, otherwise use JSON
         if files:
-            result = self._request_wrapper('POST', url, fields=data, **urlopen_kwargs)
+            result = self._request_wrapper('PATCH', url, fields=data, **urlopen_kwargs, headers=headers)
         else:
+            headers = headers or dict()
+            headers['Content-Type'] = 'application/json'
+            result = self._request_wrapper('PATCH', url,
+                                           body=json.dumps(data).encode('utf-8'), headers=headers)
+
+        return self._parse(result)
+
+    def post(self, url, data, timeout=None, headers=None, *args, **kwargs):
+        """Request an URL.
+
+        Args:
+            headers:
+            url (:obj:`str`): The web location we want to retrieve.
+            data (dict[str, str|int]): A dict of key/value pairs. Note: On py2.7 value is unicode.
+            timeout (:obj:`int` | :obj:`float`): If this value is specified, use it as the read
+                timeout from the server (instead of the one specified during creation of the
+                connection pool).
+
+        Returns:
+          A JSON object.
+
+        """
+        urlopen_kwargs = {}
+
+        if timeout is not None:
+            urlopen_kwargs['timeout'] = Timeout(read=timeout, connect=self._connect_timeout)
+
+        # Are we uploading files?
+        files = False
+
+        for key, val in data.copy().items():
+            if isinstance(val, InputFile):
+                # Convert the InputFile to urllib3 field format
+                data[key] = val.field_tuple
+                files = True
+            elif isinstance(val, (float, int)):
+                # Urllib3 doesn't like floats it seems
+                data[key] = str(val)
+            elif key == 'media':
+                # One media or multiple
+                if isinstance(val, InputMedia):
+                    # Attach and set val to attached name
+                    data[key] = val.to_json()
+                    if isinstance(val.media, InputFile):
+                        data[val.media.attach] = val.media.field_tuple
+                else:
+                    # Attach and set val to attached name for all
+                    media = []
+                    for m in val:
+                        media.append(m.to_dict())
+                        if isinstance(m.media, InputFile):
+                            data[m.media.attach] = m.media.field_tuple
+                    data[key] = json.dumps(media)
+                files = True
+
+        # Use multipart upload if we're uploading files, otherwise use JSON
+        if files:
+            result = self._request_wrapper('POST', url, fields=data, **urlopen_kwargs, headers=headers)
+        else:
+            headers = headers or dict()
+            headers['Content-Type'] = 'application/json'
             result = self._request_wrapper('POST', url,
-                                           body=json.dumps(data).encode('utf-8'),
-                                           headers={'Content-Type': 'application/json'})
+                                           body=json.dumps(data).encode('utf-8'), headers=headers)
 
         return self._parse(result)
 

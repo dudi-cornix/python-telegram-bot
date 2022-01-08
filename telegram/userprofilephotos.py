@@ -19,6 +19,7 @@
 """This module contains an object that represents a Telegram UserProfilePhotos."""
 
 from telegram import PhotoSize, TelegramObject
+from telegram.constants import PlatformType
 
 
 class UserProfilePhotos(TelegramObject):
@@ -51,11 +52,11 @@ class UserProfilePhotos(TelegramObject):
 
         return cls(**data)
 
-    def to_dict(self):
-        data = super(UserProfilePhotos, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(UserProfilePhotos, self).to_dict(platform_type=platform_type)
 
         data['photos'] = []
         for photo in self.photos:
-            data['photos'].append([x.to_dict() for x in photo])
+            data['photos'].append([x.to_dict(platform_type=platform_type) for x in photo])
 
         return data

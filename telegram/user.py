@@ -20,6 +20,7 @@
 """This module contains an object that represents a Telegram User."""
 
 from telegram import TelegramObject
+from telegram.constants import PlatformType
 from telegram.utils.helpers import mention_html as util_mention_html
 from telegram.utils.helpers import mention_markdown as util_mention_markdown
 
@@ -96,13 +97,27 @@ class User(TelegramObject):
         return None
 
     @classmethod
+    def de_json_discord(cls, bot, data):
+        user = cls(bot=bot, username=data["username"], first_name=data.get("first_name"),
+                   last_name=data.get("last_name"), id=data["id"], is_bot=data.get("bot", False))
+        return user
+
+    @classmethod
+    def de_json_telegram(cls, bot, data):
+        user = cls(bot=bot, **data)
+        return user
+
+    @classmethod
     def de_json(cls, data, bot):
         if not data:
             return None
 
         data = super(User, cls).de_json(data, bot)
-
-        return cls(bot=bot, **data)
+        if bot.type == PlatformType.telegram.value:
+            user = cls.de_json_telegram(bot, data)
+        else:
+            user = cls.de_json_discord(bot, data)
+        return user
 
     def get_profile_photos(self, *args, **kwargs):
         """

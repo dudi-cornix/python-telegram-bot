@@ -38,6 +38,7 @@ Attributes:
         formatting styles)
 
 """
+from enum import Enum
 
 MAX_MESSAGE_LENGTH = 4096
 MAX_CAPTION_LENGTH = 200
@@ -52,3 +53,10 @@ MAX_MESSAGES_PER_SECOND = 30
 MAX_MESSAGES_PER_MINUTE_PER_GROUP = 20
 MAX_MESSAGE_ENTITIES = 100
 MAX_INLINE_QUERY_RESULTS = 50
+
+DISCORD = "discord"
+
+
+class PlatformType(Enum):
+    telegram = 1
+    discord = 2

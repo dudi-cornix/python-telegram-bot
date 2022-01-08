@@ -19,6 +19,7 @@
 """This module contains an object that represents a Telegram ChatMember."""
 
 from telegram import User, TelegramObject
+from telegram.constants import PlatformType
 from telegram.utils.helpers import to_timestamp, from_timestamp
 
 
@@ -144,7 +145,7 @@ class ChatMember(TelegramObject):
 
         return cls(**data)
 
-    def to_dict(self):
+    def to_dict(self, platform_type=PlatformType.telegram.value):
         data = super(ChatMember, self).to_dict()
 
         data['until_date'] = to_timestamp(self.until_date)

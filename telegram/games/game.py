@@ -21,6 +21,7 @@
 import sys
 
 from telegram import MessageEntity, TelegramObject, Animation, PhotoSize
+from telegram.constants import PlatformType
 
 
 class Game(TelegramObject):
@@ -85,8 +86,8 @@ class Game(TelegramObject):
 
         return cls(**data)
 
-    def to_dict(self):
-        data = super(Game, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(Game, self).to_dict(platform_type=platform_type)
 
         data['photo'] = [p.to_dict() for p in self.photo]
         if self.text_entities:

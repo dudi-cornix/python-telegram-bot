@@ -19,6 +19,7 @@
 """This module contains an object that represents a Telegram CallbackQuery"""
 
 from telegram import TelegramObject, Message, User
+from telegram.constants import PlatformType
 
 
 class CallbackQuery(TelegramObject):
@@ -94,14 +95,29 @@ class CallbackQuery(TelegramObject):
         self._id_attrs = (self.id,)
 
     @classmethod
+    def de_json_discord(cls, bot, data):
+        user = data.get("user") or data['member']['user']
+        data['from_user'] = User.de_json(user, bot)
+        data['message'] = Message.de_json(data.get('message'), bot)
+        data['data'] = data["data"]["custom_id"]
+        data['chat_instance'] = None
+
+    @classmethod
+    def de_json_telegram(cls, bot, data):
+        data['from_user'] = User.de_json(data.get('from'), bot)
+        data['message'] = Message.de_json(data.get('message'), bot)
+
+    @classmethod
     def de_json(cls, data, bot):
         if not data:
             return None
 
         data = super(CallbackQuery, cls).de_json(data, bot)
 
-        data['from_user'] = User.de_json(data.get('from'), bot)
-        data['message'] = Message.de_json(data.get('message'), bot)
+        if bot.type == PlatformType.telegram.value:
+            cls.de_json_telegram(bot, data)
+        else:
+            cls.de_json_discord(bot, data)
 
         return cls(bot=bot, **data)
 

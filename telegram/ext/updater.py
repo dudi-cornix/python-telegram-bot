@@ -21,17 +21,17 @@
 import logging
 import os
 import ssl
+import subprocess
+from queue import Queue
+from signal import signal, SIGINT, SIGTERM, SIGABRT
 from threading import Thread, Lock, current_thread, Event
 from time import sleep
-import subprocess
-from signal import signal, SIGINT, SIGTERM, SIGABRT
-from queue import Queue
 
-from telegram import Bot, TelegramError
-from telegram.ext import Dispatcher, JobQueue
+from telegram import TelegramError
+from telegram.bot.discord_bot import async_bot
 from telegram.error import Unauthorized, InvalidToken, RetryAfter, TimedOut
+from telegram.ext import Dispatcher, JobQueue
 from telegram.utils.helpers import get_signal_name
-from telegram.utils.request import Request
 from telegram.utils.webhookhandler import (WebhookServer, WebhookHandler)
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -60,7 +60,6 @@ class Updater(object):
 
     Args:
         token (:obj:`str`, optional): The bot's token given by the @BotFather.
-        base_url (:obj:`str`, optional): Base_url for the bot.
         workers (:obj:`int`, optional): Amount of threads in the thread pool for functions
             decorated with ``@run_async``.
         bot (:class:`telegram.Bot`, optional): A pre-initialized bot instance. If a pre-initialized
@@ -71,10 +70,6 @@ class Updater(object):
         user_sig_handler (:obj:`function`, optional): Takes ``signum, frame`` as positional
             arguments. This will be called when a signal is received, defaults are (SIGINT,
             SIGTERM, SIGABRT) setable with :attr:`idle`.
-        request_kwargs (:obj:`dict`, optional): Keyword args to control the creation of a
-            `telegram.utils.request.Request` object (ignored if `bot` argument is used). The
-            request_kwargs are very useful for the advanced users who would like to control the
-            default timeouts and/or control the proxy used for http communication.
 
     Note:
         You must supply either a :attr:`bot` or a :attr:`token` argument.
@@ -88,13 +83,10 @@ class Updater(object):
 
     def __init__(self,
                  token=None,
-                 base_url=None,
                  workers=4,
                  bot=None,
                  private_key=None,
-                 private_key_password=None,
-                 user_sig_handler=None,
-                 request_kwargs=None):
+                 user_sig_handler=None):
 
         if (token is None) and (bot is None):
             raise ValueError('`token` or `bot` must be passed')
@@ -102,31 +94,17 @@ class Updater(object):
             raise ValueError('`token` and `bot` are mutually exclusive')
         if (private_key is not None) and (bot is not None):
             raise ValueError('`bot` and `private_key` are mutually exclusive')
+        assert bot is not None
 
         self.logger = logging.getLogger(__name__)
 
         con_pool_size = workers + 4
 
-        if bot is not None:
-            self.bot = bot
-            if bot.request.con_pool_size < con_pool_size:
-                self.logger.warning(
-                    'Connection pool of Request object is smaller than optimal value (%s)',
-                    con_pool_size)
-        else:
-            # we need a connection pool the size of:
-            # * for each of the workers
-            # * 1 for Dispatcher
-            # * 1 for polling Updater (even if webhook is used, we can spare a connection)
-            # * 1 for JobQueue
-            # * 1 for main thread
-            if request_kwargs is None:
-                request_kwargs = {}
-            if 'con_pool_size' not in request_kwargs:
-                request_kwargs['con_pool_size'] = con_pool_size
-            self._request = Request(**request_kwargs)
-            self.bot = Bot(token, base_url, request=self._request, private_key=private_key,
-                           private_key_password=private_key_password)
+        self.bot = bot
+        if bot.request.con_pool_size < con_pool_size:
+            self.logger.warning(
+                'Connection pool of Request object is smaller than optimal value (%s)',
+                con_pool_size)
         self.user_sig_handler = user_sig_handler
         self.update_queue = Queue()
         self.job_queue = JobQueue(self.bot)
@@ -159,6 +137,52 @@ class Updater(object):
             self.logger.exception('unhandled exception in %s', thr_name)
             raise
         self.logger.debug('{0} - ended'.format(thr_name))
+
+    def start_websocket(self):
+        with self.__lock:
+            if not self.running:
+                self.running = True
+
+                # Create & start threads
+                self.job_queue.start()
+                self._init_thread(self.dispatcher.start, "dispatcher"),
+                self._start_websocket()
+
+    def _start_websocket(self):
+        self.logger.debug('Updater thread started (websocket)')
+
+        @async_bot.event
+        async def on_socket_response(event):
+            from telegram import Update
+
+            event_type = event.get("t")
+            if not event_type or event_type not in {"MESSAGE_CREATE", "INTERACTION_CREATE"}:
+                return
+
+            data = event.get("d")
+            if not data:
+                return
+
+            update_data = dict()
+            message = data.get("message")
+            if message is None:
+                message = data
+                update_data["message"] = data
+                update_data["type"] = data["type"]
+                update_data["id"] = data["id"]
+            else:
+                update_data = data
+
+            author = message.get("author")
+            if not author or (event_type == "MESSAGE_CREATE" and author["id"] == async_bot.user.id):
+                return
+
+            update = Update.de_json(update_data, self.bot)
+            self.update_queue.put(update)
+
+            return True
+
+        self.bot.run()
 
     def start_polling(self,
                       poll_interval=0.0,

@@ -20,6 +20,7 @@
 """This module contains an object that represents a Telegram Chat."""
 
 from telegram import TelegramObject, ChatPhoto
+from telegram.constants import PlatformType
 
 
 class Chat(TelegramObject):
@@ -125,15 +126,25 @@ class Chat(TelegramObject):
         return None
 
     @classmethod
+    def de_json_discord(cls, bot, data):
+        return cls(bot=bot, id=data["id"], type=cls.CHANNEL)
+
+    @classmethod
+    def de_json_telegram(cls, bot, data):
+        data['photo'] = ChatPhoto.de_json(data.get('photo'), bot)
+        from telegram import Message
+        data['pinned_message'] = Message.de_json(data.get('pinned_message'), bot)
+        return cls(bot=bot, **data)
+
+    @classmethod
     def de_json(cls, data, bot):
         if not data:
             return None
 
-        data['photo'] = ChatPhoto.de_json(data.get('photo'), bot)
-        from telegram import Message
-        data['pinned_message'] = Message.de_json(data.get('pinned_message'), bot)
-
-        return cls(bot=bot, **data)
+        if bot.type == PlatformType.telegram.value:
+            return cls.de_json_telegram(bot, data)
+        else:
+            return cls.de_json_discord(bot, data)
 
     def send_action(self, *args, **kwargs):
         """Shortcut for::

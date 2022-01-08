@@ -19,6 +19,9 @@
 """This module contains an object that represents a Telegram InlineKeyboardMarkup."""
 
 from telegram import ReplyMarkup
+from telegram.constants import PlatformType
+
+MAX_ROW_THRESHOLD = 5
 
 
 class InlineKeyboardMarkup(ReplyMarkup):
@@ -40,11 +43,15 @@ class InlineKeyboardMarkup(ReplyMarkup):
         # Required
         self.inline_keyboard = inline_keyboard
 
-    def to_dict(self):
-        data = super(InlineKeyboardMarkup, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        if platform_type == PlatformType.telegram.value:
+            data = super(InlineKeyboardMarkup, self).to_dict(platform_type=platform_type)
 
-        data['inline_keyboard'] = []
-        for inline_keyboard in self.inline_keyboard:
-            data['inline_keyboard'].append([x.to_dict() for x in inline_keyboard])
+            data['inline_keyboard'] = []
+            for inline_keyboard in self.inline_keyboard:
+                data['inline_keyboard'].append([x.to_dict(platform_type=platform_type) for x in inline_keyboard])
+        else:
+            data = [{"type": 1, "components": [button.to_dict(platform_type=platform_type) for button in row]}
+                    for i, row in enumerate(self.inline_keyboard) if i < MAX_ROW_THRESHOLD]
 
         return data

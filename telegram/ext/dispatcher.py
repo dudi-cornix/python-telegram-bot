@@ -113,7 +113,7 @@ class Dispatcher(object):
         # For backward compatibility, we allow a "singleton" mode for the dispatcher. When there's
         # only one instance of Dispatcher, it will be possible to use the `run_async` decorator.
         with self.__singleton_lock:
-            if self.__singleton_semaphore.acquire(blocking=0):
+            if self.__singleton_semaphore.acquire(blocking=False):
                 self._set_singleton(self)
             else:
                 self._set_singleton(None)

@@ -19,6 +19,7 @@
 """This module contains objects that represents stickers."""
 
 from telegram import PhotoSize, TelegramObject
+from telegram.constants import PlatformType
 
 
 class Sticker(TelegramObject):
@@ -153,8 +154,8 @@ class StickerSet(TelegramObject):
 
         return StickerSet(bot=bot, **data)
 
-    def to_dict(self):
-        data = super(StickerSet, self).to_dict()
+    def to_dict(self, platform_type=PlatformType.telegram.value):
+        data = super(StickerSet, self).to_dict(platform_type=platform_type)
 
         data['stickers'] = [s.to_dict() for s in data.get('stickers')]
 

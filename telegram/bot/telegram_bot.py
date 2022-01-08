@@ -21,6 +21,9 @@
 """This module contains an object that represents a Telegram Bot."""
 
 import functools
+
+from telegram.constants import PlatformType
+
 try:
     import ujson as json
 except ImportError:
@@ -33,13 +36,34 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from future.utils import string_types
 
-from telegram import (User, Message, Update, Chat, ChatMember, UserProfilePhotos, File,
-                      ReplyMarkup, TelegramObject, WebhookInfo, GameHighScore, StickerSet,
-                      PhotoSize, Audio, Document, Sticker, Video, Animation, Voice, VideoNote,
-                      Location, Venue, Contact, InputFile)
+from telegram.base import TelegramObject
+from telegram.user import User
+from telegram.chat import Chat
+from telegram.chatmember import ChatMember
+from telegram.files.photosize import PhotoSize
+from telegram.files.audio import Audio
+from telegram.files.voice import Voice
+from telegram.files.document import Document
+from telegram.files.animation import Animation
+from telegram.files.sticker import Sticker, StickerSet
+from telegram.files.video import Video
+from telegram.files.contact import Contact
+from telegram.files.location import Location
+from telegram.files.venue import Venue
+from telegram.files.videonote import VideoNote
+from telegram.userprofilephotos import UserProfilePhotos
+from telegram.replymarkup import ReplyMarkup
+from telegram.files.inputfile import InputFile
+from telegram.files.file import File
+from telegram.message import Message
+from telegram.webhookinfo import WebhookInfo
+from telegram.games.gamehighscore import GameHighScore
+from telegram.update import Update
+
+
 from telegram.error import InvalidToken, TelegramError
 from telegram.utils.helpers import to_timestamp
-from telegram.utils.request import Request
+from telegram.utils.telegram.request import Request
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
@@ -124,6 +148,7 @@ class Bot(TelegramObject):
         self.base_url = str(base_url) + str(self.token)
         self.base_file_url = str(base_file_url) + str(self.token)
         self.bot = None
+        self.type = PlatformType.telegram.value
         self._request = request or Request()
         self.logger = logging.getLogger(__name__)
 
@@ -200,7 +225,6 @@ class Bot(TelegramObject):
 
         """
         url = '{0}/getMe'.format(self.base_url)
-
         result = self._request.get(url, timeout=timeout)
 
         self.bot = User.de_json(result, self)
@@ -3315,7 +3339,7 @@ class Bot(TelegramObject):
 
         return result
 
-    def to_dict(self):
+    def to_dict(self, platform_type=PlatformType.telegram.value):
         data = {'id': self.id, 'username': self.username, 'first_name': self.username}
 
         if self.last_name:
