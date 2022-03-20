@@ -50,7 +50,7 @@ def run_async(func):
     """
     @wraps(func)
     def async_func(*args, **kwargs):
-        return Dispatcher.get_instance().run_async(func, *args, **kwargs)
+        return Dispatcher.get_instance(args[0]).run_async(func, *args, **kwargs)
 
     return async_func
 
@@ -81,9 +81,9 @@ class Dispatcher(object):
 
     """
 
-    __singleton_lock = Lock()
-    __singleton_semaphore = BoundedSemaphore()
-    __singleton = None
+    __singleton_lock = defaultdict(Lock)
+    __singleton_semaphore = defaultdict(BoundedSemaphore)
+    __singleton = dict()
     logger = logging.getLogger(__name__)
 
     def __init__(self, bot, update_queue, workers=4, exception_event=None, job_queue=None):
@@ -112,11 +112,11 @@ class Dispatcher(object):
 
         # For backward compatibility, we allow a "singleton" mode for the dispatcher. When there's
         # only one instance of Dispatcher, it will be possible to use the `run_async` decorator.
-        with self.__singleton_lock:
-            if self.__singleton_semaphore.acquire(blocking=0):
-                self._set_singleton(self)
+        with self.__singleton_lock[self.bot.id]:
+            if self.__singleton_semaphore[self.bot.id].acquire(blocking=False):
+                self._set_singleton(self.bot, self)
             else:
-                self._set_singleton(None)
+                self._set_singleton(self.bot, None)
 
     def _init_async_threads(self, base_name, workers):
         base_name = '{}_'.format(base_name) if base_name else ''
@@ -127,12 +127,12 @@ class Dispatcher(object):
             thread.start()
 
     @classmethod
-    def _set_singleton(cls, val):
+    def _set_singleton(cls, bot, val):
         cls.logger.debug('Setting singleton dispatcher as %s', val)
-        cls.__singleton = weakref.ref(val) if val else None
+        cls.__singleton[bot.id] = weakref.ref(val) if val else None
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls, bot):
         """Get the singleton instance of this class.
 
         Returns:
@@ -142,8 +142,8 @@ class Dispatcher(object):
             RuntimeError
 
         """
-        if cls.__singleton is not None:
-            return cls.__singleton()  # pylint: disable=not-callable
+        if cls.__singleton[bot.id] is not None:
+            return cls.__singleton[bot.id]()  # pylint: disable=not-callable
         else:
             raise RuntimeError('{} not initialized or multiple instances exist'.format(
                 cls.__name__))
