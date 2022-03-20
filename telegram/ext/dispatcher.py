@@ -49,8 +49,8 @@ def run_async(func):
 
     """
     @wraps(func)
-    def async_func(*args, **kwargs):
-        return Dispatcher.get_instance(args[0]).run_async(func, *args, **kwargs)
+    def async_func(bot, *args, **kwargs):
+        return Dispatcher.get_instance(bot).run_async(func, bot, *args, **kwargs)
 
     return async_func
 
