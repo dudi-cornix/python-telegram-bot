@@ -76,6 +76,7 @@ class InlineKeyboardButton(TelegramObject):
                  switch_inline_query_current_chat=None,
                  callback_game=None,
                  pay=None,
+                 web_app=None,
                  **kwargs):
         # Required
         self.text = text
@@ -87,3 +88,4 @@ class InlineKeyboardButton(TelegramObject):
         self.switch_inline_query_current_chat = switch_inline_query_current_chat
         self.callback_game = callback_game
         self.pay = pay
+        self.web_app = web_app
